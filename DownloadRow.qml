@@ -40,22 +40,29 @@ Item {
 
   // Carries both the drag payload and the movement. One pixel, invisible;
   // moving it moves nothing anyone can see.
-  Item {
-    id: dragHandle
-    width: 1
-    height: 1
-    visible: false
-
-    Drag.active: mouse.drag.active
-    Drag.dragType: Drag.Automatic
-    Drag.supportedActions: Qt.CopyAction
-    Drag.mimeData: ({
-      "text/uri-list": String(row.file.url || "") + "\r\n",
-      "text/plain": String(row.file.url || "")
-    })
-    Drag.onDragStarted: if (row.store) row.store.draggingUrl = String(row.file.url || "")
-    Drag.onDragFinished: if (row.store) row.store.draggingUrl = ""
-  }
+  // Note for anyone testing this on an empty workspace: the compositor does
+  // not begin a drag when there is no other window that could receive it.
+  // Measured on Hyprland - with a window present the drag starts every time,
+  // on a bare workspace it never does. That is compositor behaviour, not a
+  // bug here, but it will look like the drag is broken.
+  //
+  // Drag and drag.target both live on this row, deliberately. Splitting them
+  // over a separate handle - even a sized, transparent one - makes the drag
+  // start and finish in the same instant: dragStarted and dragFinished land
+  // back to back in the log, the cursor picks up nothing, and no drop ever
+  // happens. Qt carries the drag from the item that owns both.
+  //
+  // The row does get moved by the drag, but Drag.Automatic hands the pointer
+  // to the compositor immediately, so it never travels far enough to see.
+  Drag.active: mouse.drag.active
+  Drag.dragType: Drag.Automatic
+  Drag.supportedActions: Qt.CopyAction
+  Drag.mimeData: ({
+    "text/uri-list": String(row.file.url || "") + "\r\n",
+    "text/plain": String(row.file.url || "")
+  })
+  Drag.onDragStarted: if (row.store) row.store.draggingUrl = String(row.file.url || "")
+  Drag.onDragFinished: if (row.store) row.store.draggingUrl = ""
 
   Rectangle {
     anchors.fill: parent
@@ -132,7 +139,7 @@ Item {
     anchors.fill: parent
     hoverEnabled: true
     cursorShape: mouse.drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-    drag.target: dragHandle
+    drag.target: row
     drag.threshold: Style.space(6)
 
     // Grab a picture of the row on press, so the drag carries something you
@@ -140,7 +147,7 @@ Item {
     // threshold; if it is not ready the drag simply has no image.
     onPressed: {
       row.grabToImage(function(result) {
-        if (result) dragHandle.Drag.imageSource = result.url
+        if (result) row.Drag.imageSource = result.url
       })
     }
 
