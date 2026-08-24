@@ -90,9 +90,19 @@ Singleton {
     if (folder) root.folderUrl = folder
   }
 
-  function show() { root.tick(); root.open = true }
+  function show() { root.showOn(null) }
   function hide() { root.open = false }
   function toggle() { root.open ? root.hide() : root.show() }
+
+  // One window, many bar copies. The widget that opened it passes that
+  // bar's screen so the list maps on the same output instead of Hyprland's
+  // last-used monitor. Null keeps the current screen (IPC with no opener).
+  function showOn(screen) {
+    root.tick()
+    if (screen)
+      win.screen = screen
+    root.open = true
+  }
 
   // Partial downloads: the browser is still writing these and the final name
   // is not known yet, so they are noise in the list and useless to drag.

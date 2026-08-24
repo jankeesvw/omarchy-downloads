@@ -36,14 +36,19 @@ omarchy bar move jankeesvw.downloads --section right
 ### Make it behave like a popout
 
 Optional but recommended. Without these rules the list tiles like any other
-window; with them it floats under the bar on the right. Add to
-`~/.config/hypr/windows.lua`:
+window; with them it floats under the bar on the right of the monitor that
+opened it. Add to `~/.config/hypr/windows.lua`:
 
 ```lua
 o.window({ class = "^org.quickshell$", title = "^Downloads$" }, { tag = "-floating-window" })
 o.window({ class = "^org.quickshell$", title = "^Downloads$" }, { float = true })
-o.window({ class = "^org.quickshell$", title = "^Downloads$" }, { move = { "(monitor_w-536)", 34 } })
+o.window({ class = "^org.quickshell$", title = "^Downloads$" }, { move = { "(monitor_w-window_w-2)", 34 } })
 ```
+
+`window_w` is the surface. Hyprland draws `general:border_size` (2 by default)
+outside that box, so the extra 2px keeps the frame on the same output. A
+hardcoded width is short of the real frame and parks the list on the next
+monitor.
 
 Then `hyprctl reload`. Match on the title as well as the class: `org.quickshell`
 is every window the shell owns.
