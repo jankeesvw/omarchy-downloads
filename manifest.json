@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "jankeesvw.downloads",
+  "name": "Downloads",
+  "version": "1.0.0",
+  "author": "Jankees",
+  "description": "Recent downloads in the bar, in a window you can drag files out of",
+  "homepage": "https://github.com/jankeesvw/omarchy-downloads",
+  "license": "MIT",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Downloads",
+    "description": "Recent downloads in the bar, in a window you can drag files out of",
+    "category": "Apps",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

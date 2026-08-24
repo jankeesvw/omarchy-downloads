@@ -1,0 +1,2 @@
+singleton DownloadsStore 1.0 DownloadsStore.qml
+DownloadRow 1.0 DownloadRow.qml
