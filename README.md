@@ -82,8 +82,15 @@ Set these on the plugin's entry in `~/.config/omarchy/shell.json`:
 
 - **Partial downloads are hidden.** `.crdownload`, `.part`, `.tmp` and friends
   are still being written and the final name is not known yet.
-- **The list caps at 200 rows.** Anything past that is counted under the list
-  rather than silently dropped.
+- **The list caps at 200 rows, and a refresh reads at most 2000 files.** Both
+  caps cut from the oldest end - the folder is read newest first - so a recent
+  download is never the thing that falls outside them. The window says what it
+  left out rather than pretending the folder is smaller than it is.
+- **Not every change gets its own refresh.** A folder filling up reports one
+  change per file, and those are collapsed into a single rebuild. A folder too
+  large to watch cheaply is polled instead of watched - one read per interval
+  rather than one per file - and with the window closed the refresh backs off.
+  Below that size nothing changes: a download appears the moment it lands.
 - **A file that grows after it appears keeps its first size.** The folder
   watcher reports new and removed files, not writes to existing ones. Browsers
   rename on completion, so finished downloads are accurate.

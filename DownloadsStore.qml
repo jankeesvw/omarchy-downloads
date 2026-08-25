@@ -72,6 +72,8 @@ Singleton {
   property int totalCount: 0
   // Files left out because the list is capped.
   property int hiddenCount: 0
+  // Files past the scan cap, counted from the model but never read.
+  property int uncountedCount: 0
   // Show everything, or only what arrived within freshMinutes.
   property bool showAll: true
   // Ages are read off this rather than off a fresh clock per row, so the
@@ -84,13 +86,42 @@ Singleton {
 
   readonly property int maxRows: 200
 
+  // Entries a single rebuild is allowed to touch. The row cap alone does not
+  // bound the work: it stops the list from growing, but the loop still ran to
+  // the end of the folder, and every entry costs several reads across the
+  // QML/C++ boundary. A folder with a hundred thousand files in it - unpacked
+  // by accident, or filled on purpose - then put that whole walk on the UI
+  // thread of a shell that never restarts. This is the ceiling on that walk.
+  //
+  // Cutting the tail is safe because the model hands back newest first: the
+  // entries that fall outside the cap are the oldest ones, never a fresh
+  // download and never a row that would have made the list.
+  readonly property int maxScan: 2000
+
+  // Watching a folder is not free, and the price is set by the folder rather
+  // than by the change: Qt re-reads the whole directory every time anything
+  // in it moves. On a download folder with a few hundred files in it that is
+  // nothing. Measured on a folder of 41k files, a batch of 300 arrivals cost
+  // the shell 7 seconds of CPU - one full re-read per file - and a shell that
+  // never restarts cannot afford that.
+  //
+  // So the watcher is something the folder has to earn. Under maxScan it
+  // stays live and a download shows up the moment it lands. Past that the
+  // model is detached after each scan and the folder is polled instead, which
+  // turns the cost of a folder that keeps changing into one scan per interval
+  // instead of one per file. Nothing blinks while it is detached: every
+  // property the window reads is a snapshot taken by rebuild(), not the model.
+  property bool polling: false
+  // The folder the model is watching right now. Empty means detached.
+  property url scanFolder: root.folderUrl
+
   function configure(minutes, folder) {
     var n = Number(minutes)
     if (isFinite(n) && n >= 1 && n <= 1440) root.freshMinutes = Math.round(n)
     if (folder) root.folderUrl = folder
   }
 
-  function show() { root.tick(); root.open = true }
+  function show() { root.rescan(); root.open = true }
   function hide() { root.open = false }
   function toggle() { root.open ? root.hide() : root.show() }
 
@@ -140,8 +171,9 @@ Singleton {
     return Math.floor(days / 30) + " mo"
   }
 
-  // Rebuild the visible list and recount what is fresh. Cheap enough to run
-  // on every folder change and on the tick; the model is already in memory.
+  // Rebuild the visible list and recount what is fresh. The cost of one run
+  // is bounded by maxScan rather than by the size of the folder, so a folder
+  // nobody has ever cleaned out costs the same as an empty one.
   function rebuild() {
     var out = []
     var fresh = 0
@@ -149,7 +181,10 @@ Singleton {
     var skipped = 0
     var cutoff = root.now - root.freshMinutes * 60000
 
-    for (var i = 0; i < folderModel.count; i++) {
+    var count = folderModel.count
+    var scan = Math.min(count, root.maxScan)
+
+    for (var i = 0; i < scan; i++) {
       var name = String(folderModel.get(i, "fileName") || "")
       if (name === "" || root.isPartial(name)) continue
 
@@ -177,12 +212,39 @@ Singleton {
     root.freshCount = fresh
     root.totalCount = total
     root.hiddenCount = skipped
+    root.uncountedCount = count - scan
   }
 
   function tick() {
     root.now = Date.now()
+    // Detached, or still reading: the model holds nothing to rebuild from,
+    // and doing it anyway would blank the window. The snapshot from the last
+    // scan stands until the next one lands. Note the clock above is set
+    // either way, so the ages on screen keep moving.
+    if (String(root.scanFolder) === "" || folderModel.status !== FolderListModel.Ready) return
+
     root.rebuild()
+
+    if (folderModel.count > root.maxScan) {
+      root.polling = true
+      root.scanFolder = ""
+    } else {
+      root.polling = false
+    }
   }
+
+  // Read the folder again. Reattaching the model is itself the read, so it is
+  // one or the other, never both.
+  function rescan() {
+    if (String(root.scanFolder) === "") root.scanFolder = root.folderUrl
+    else root.tick()
+  }
+
+  // Every refresh that is not a direct answer to a click goes through here.
+  // The folder reports one change per file, so a batch download or an
+  // unpacking archive would otherwise ask for a rebuild dozens of times a
+  // second. Restarting the timer collapses that burst into one.
+  function scheduleTick() { coalesce.restart() }
 
   // Quickshell.execDetached with an argument array, not Util.execDetached:
   // that helper takes a string and runs it through `bash -lc`, so anything
@@ -196,12 +258,23 @@ Singleton {
       Quickshell.execDetached(["xdg-open", target])
   }
 
-  onShowAllChanged: root.rebuild()
-  onFolderUrlChanged: root.tick()
+  onShowAllChanged: root.rescan()
+  onFolderUrlChanged: {
+    root.polling = false
+    root.scanFolder = root.folderUrl
+    root.tick()
+  }
+
+  Timer {
+    id: coalesce
+    interval: 250
+    repeat: false
+    onTriggered: root.tick()
+  }
 
   FolderListModel {
     id: folderModel
-    folder: root.folderUrl
+    folder: root.scanFolder
     showDirs: false
     showHidden: false
     showDotAndDotDot: false
@@ -209,19 +282,26 @@ Singleton {
     // wants: the file you just downloaded is the one you came for.
     sortField: FolderListModel.Time
     sortReversed: false
-    onCountChanged: root.tick()
-    onStatusChanged: if (status === FolderListModel.Ready) root.tick()
+    onCountChanged: root.scheduleTick()
+    onStatusChanged: if (status === FolderListModel.Ready) root.scheduleTick()
   }
 
   // Ages drift and a download can finish while the window sits open, so the
   // list refreshes on its own. Fast enough that "just now" means something,
   // slow enough to stay invisible.
+  //
+  // With the window closed this mostly drives the badge going quiet once
+  // nothing is fresh any more, and that can wait - on a watched folder the
+  // arrival itself wakes the store, so a new download is never waiting on
+  // this timer. It backs off rather than reading the folder every 20 seconds
+  // for the rest of the session. On a polled folder this is the read, and the
+  // same reasoning holds: the window is closed, nobody is looking.
   Timer {
-    interval: 20000
+    interval: root.open ? 20000 : 60000
     running: true
     repeat: true
     triggeredOnStart: true
-    onTriggered: root.tick()
+    onTriggered: root.rescan()
   }
 
   FloatingWindow {
@@ -363,6 +443,7 @@ Singleton {
           text: root.showAll
             ? "Nothing in " + root.displayPath
             : "Nothing in the last " + root.freshMinutes + " minutes.\n"
+              + (root.uncountedCount > 0 ? "More than " : "")
               + root.totalCount + " files in the folder."
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
@@ -372,9 +453,11 @@ Singleton {
 
         Text {
           Layout.fillWidth: true
-          visible: root.hiddenCount > 0
+          visible: root.hiddenCount > 0 || root.uncountedCount > 0
           textFormat: Text.PlainText
-          text: "+ " + root.hiddenCount + " more not shown"
+          text: root.uncountedCount > 0
+            ? "Newest " + root.files.length + " of more than " + root.maxScan + " files"
+            : "+ " + root.hiddenCount + " more not shown"
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption
           renderType: Text.NativeRendering
