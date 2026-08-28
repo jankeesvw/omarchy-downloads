@@ -581,7 +581,12 @@ Singleton {
             required property var modelData
             width: list.width
             store: root
-            file: modelData
+            // A delegate outlives the row it was built for by a moment when
+            // the model is replaced, and reads modelData once more on the way
+            // out. Without the fallback that read is undefined, file.url
+            // throws inside the binding, and the whole binding resolves to
+            // undefined rather than to a value the property can hold.
+            file: modelData || ({})
           }
         }
 

@@ -32,7 +32,7 @@ Item {
   // { name, url, path, size, modified, fresh }
   property var file: ({})
 
-  readonly property bool dragging: !!(store && file && store.draggingUrl === file.url)
+  readonly property bool dragging: store !== null && !!file && store.draggingUrl === file.url
   readonly property bool fresh: !!(file && file.fresh === true)
 
   implicitHeight: Style.space(34)
@@ -96,9 +96,9 @@ Item {
 
     Text {
       Layout.alignment: Qt.AlignVCenter
-      text: (row.store && row.file) ? String(row.store.iconFor(row.file.name) || "") : ""
+      text: (row.store && row.store.iconFor && row.file) ? String(row.store.iconFor(row.file.name) || "") : ""
       textFormat: Text.PlainText
-      font.family: (row.store && row.store.fontFamily) ? row.store.fontFamily : Style.font.family
+      font.family: String((row.store && row.store.fontFamily) || Style.font.family || "")
       font.pixelSize: Style.font.icon
       renderType: Text.NativeRendering
       color: row.fresh ? Color.accent : Color.muted
@@ -114,7 +114,7 @@ Item {
       text: row.file ? String(row.file.name || "") : ""
       textFormat: Text.PlainText
       elide: Text.ElideMiddle
-      font.family: (row.store && row.store.fontFamily) ? row.store.fontFamily : Style.font.family
+      font.family: String((row.store && row.store.fontFamily) || Style.font.family || "")
       font.pixelSize: Style.font.body
       renderType: Text.NativeRendering
       color: Color.foreground
@@ -122,12 +122,12 @@ Item {
 
     Text {
       Layout.alignment: Qt.AlignVCenter
-      text: (row.store && row.file)
+      text: (row.store && row.store.formatAge && row.file)
         ? String(row.store.formatAge(row.file.modified) || "")
           + (row.file.size > 0 ? "  ·  " + String(row.store.formatSize(row.file.size) || "") : "")
         : ""
       textFormat: Text.PlainText
-      font.family: (row.store && row.store.fontFamily) ? row.store.fontFamily : Style.font.family
+      font.family: String((row.store && row.store.fontFamily) || Style.font.family || "")
       font.pixelSize: Style.font.caption
       renderType: Text.NativeRendering
       color: Color.muted
