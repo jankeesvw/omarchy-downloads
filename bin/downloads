@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# downloads: read the download folder for the bar widget, with a ceiling.
+#
+# FolderListModel reads a directory by enumerating all of it, stat-ing every
+# entry and sorting the lot, and only then can QML see a count. On a folder
+# nobody has cleaned out, or one filled on purpose, that whole walk lands on
+# the UI thread of a shell that never restarts. Measured on 41k files: a batch
+# of 300 arrivals cost 7 seconds of CPU.
+#
+# So the size of the folder is decided here, before anything expensive is
+# allowed to happen, and the expensive read itself runs in this short-lived
+# process rather than in the shell.
+#
+#   probe DIR   how many entries, counted no further than the cap and without
+#               stat-ing anything. This is what tells QML whether attaching
+#               the model is safe.
+#   list DIR    the newest files as JSON, bounded by entries and by bytes.
+
+set -uo pipefail
+
+die() { printf '{"ok":false,"error":%s}\n' "$(printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"; exit 0; }
+
+# Entries probe stops counting at. Anything at or above this is "too big to
+# watch" as far as the widget is concerned, and the exact number past it is
+# not interesting: the answer is the same either way.
+readonly PROBE_CAP=2000
+# Entries list is allowed to stat, and rows it may return. The first bounds
+# the work, the second bounds what crosses into QML.
+readonly SCAN_CAP=5000
+readonly ROW_CAP=200
+
+valid_dir() {
+  local d=$1
+  # Absolute path only: a folder setting like "-foo" or a relative one has no
+  # business reaching a readdir, and refusing is cheaper than repairing.
+  [[ $d == /* ]] || return 1
+  [[ -d $d ]] || return 1
+  [[ ! -L $d ]] || return 1
+  return 0
+}
+
+cmd_probe() {
+  local dir=$1 n
+  valid_dir "$dir" || die "not a directory"
+  # -U is the whole point: no sorting, so ls streams entries as readdir hands
+  # them over and head can stop it. No -l either, so nothing is stat-ed.
+  # SIGPIPE ends ls once head has seen enough, which makes this O(cap) rather
+  # than O(folder).
+  n=$(ls -U -A -- "$dir" 2>/dev/null | head -n "$((PROBE_CAP + 1))" | wc -l)
+  [[ $n =~ ^[0-9]+$ ]] || n=0
+  if (( n > PROBE_CAP )); then
+    printf '{"ok":true,"entries":%s,"over":true}\n' "$PROBE_CAP"
+  else
+    printf '{"ok":true,"entries":%s,"over":false}\n' "$n"
+  fi
+}
+
+cmd_list() {
+  local dir=$1
+  valid_dir "$dir" || die "not a directory"
+  DL_SCAN_CAP=$SCAN_CAP DL_ROW_CAP=$ROW_CAP python3 - "$dir" <<'PY'
+import json, os, sys
+
+directory = sys.argv[1]
+scan_cap = int(os.environ["DL_SCAN_CAP"])
+row_cap = int(os.environ["DL_ROW_CAP"])
+
+rows = []
+scanned = 0
+truncated = False
+
+try:
+    with os.scandir(directory) as it:
+        for entry in it:
+            if scanned >= scan_cap:
+                truncated = True
+                break
+            scanned += 1
+            try:
+                if not entry.is_file(follow_symlinks=False):
+                    continue
+                stat = entry.stat(follow_symlinks=False)
+            except OSError:
+                continue
+            rows.append((stat.st_mtime, stat.st_size, entry.name))
+except OSError as exc:
+    print(json.dumps({"ok": False, "error": str(exc)}))
+    sys.exit(0)
+
+# Newest first, which is the order the window wants: the file you just
+# downloaded is the one you came for.
+rows.sort(key=lambda r: r[0], reverse=True)
+hidden = max(0, len(rows) - row_cap)
+rows = rows[:row_cap]
+
+files = [
+    {
+        "name": name,
+        "path": os.path.join(directory, name),
+        "size": size,
+        "modified": int(mtime * 1000),
+    }
+    for (mtime, size, name) in rows
+]
+
+print(json.dumps({
+    "ok": True,
+    "files": files,
+    "hidden": hidden,
+    "scanned": scanned,
+    "truncated": truncated,
+}, ensure_ascii=False))
+PY
+}
+
+case "${1:-}" in
+  probe) shift; cmd_probe "${1:-}" ;;
+  list)  shift; cmd_list "${1:-}" ;;
+  *) die "usage: downloads probe|list DIR" ;;
+esac

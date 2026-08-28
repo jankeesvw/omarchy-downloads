@@ -5,6 +5,7 @@ import QtQuick
 import QtQuick.Layouts
 import Qt.labs.folderlistmodel
 import Quickshell
+import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -16,11 +17,17 @@ import qs.Ui
 // leaves the other behind. Measured, not guessed. Keeping the model and the
 // window here means every bar button is a view onto the same thing.
 //
-// The list comes from FolderListModel rather than a helper script: no shell,
-// no quoting, and no path from a filename into an exec. Filenames are chosen
-// by whoever made the file, so every Text is PlainText - on the default
-// AutoText, Qt decides for itself that a name looks like markup and renders
-// it as rich text, and rich text really does fetch `<img src="http://...">`.
+// A normal download folder is read by FolderListModel: no shell, no quoting,
+// and no path from a filename into an exec. A folder too large to read that
+// way goes through bin/downloads instead, which is the only reason a helper
+// exists here at all. It is handed an argument array rather than a command
+// string, so nothing is ever split by a shell, and it refuses any path that
+// is not an absolute directory.
+//
+// Either way the filenames are chosen by whoever made the file, so every Text
+// is PlainText - on the default AutoText, Qt decides for itself that a name
+// looks like markup and renders it as rich text, and rich text really does
+// fetch `<img src="http://...">`.
 //
 // Glyphs are \u escapes rather than literal characters, so the source
 // survives editors and patches that mangle private-use codepoints.
@@ -86,12 +93,16 @@ Singleton {
 
   readonly property int maxRows: 200
 
-  // Entries a single rebuild is allowed to touch. The row cap alone does not
-  // bound the work: it stops the list from growing, but the loop still ran to
-  // the end of the folder, and every entry costs several reads across the
-  // QML/C++ boundary. A folder with a hundred thousand files in it - unpacked
-  // by accident, or filled on purpose - then put that whole walk on the UI
-  // thread of a shell that never restarts. This is the ceiling on that walk.
+  // Entries a single rebuild is allowed to read out of the model, and the
+  // size past which a folder is not watched at all. It has to match the cap
+  // the probe uses, because the two answer the same question from different
+  // sides: the probe decides whether the model may be attached, this decides
+  // when an already attached one has to let go.
+  //
+  // Note what this does not do. It bounds the reads across the QML/C++
+  // boundary, which are expensive, but it never bounded the model itself:
+  // FolderListModel enumerates, stats and sorts the whole directory before a
+  // count exists to compare against. That is what the probe is for.
   //
   // Cutting the tail is safe because the model hands back newest first: the
   // entries that fall outside the cap are the oldest ones, never a fresh
@@ -112,8 +123,11 @@ Singleton {
   // instead of one per file. Nothing blinks while it is detached: every
   // property the window reads is a snapshot taken by rebuild(), not the model.
   property bool polling: false
-  // The folder the model is watching right now. Empty means detached.
-  property url scanFolder: root.folderUrl
+  // The folder the model is watching right now. Empty means detached, and
+  // that is deliberately where it starts: the model must never be pointed at
+  // a folder whose size nobody has established yet, or the first read is the
+  // unbounded one all of this exists to avoid.
+  property url scanFolder: ""
 
   function configure(minutes, folder) {
     var n = Number(minutes)
@@ -217,6 +231,12 @@ Singleton {
 
   function tick() {
     root.now = Date.now()
+
+    // Past the probe's ceiling the model is never attached, so the helper is
+    // the only reader. It runs on the timer below rather than on folder
+    // changes, which is the whole point of polling a folder this size.
+    if (root.polling) { root.readViaHelper(); return }
+
     // Detached, or still reading: the model holds nothing to rebuild from,
     // and doing it anyway would blank the window. The snapshot from the last
     // scan stands until the next one lands. Note the clock above is set
@@ -225,19 +245,118 @@ Singleton {
 
     root.rebuild()
 
+    // The probe decides what gets attached, but a folder can grow past the
+    // ceiling while it is already being watched, and then the probe is not
+    // the one holding the door. Detaching here is the second line: the walk
+    // that just happened was the last expensive one.
     if (folderModel.count > root.maxScan) {
       root.polling = true
       root.scanFolder = ""
-    } else {
-      root.polling = false
+      root.readViaHelper()
     }
   }
 
-  // Read the folder again. Reattaching the model is itself the read, so it is
-  // one or the other, never both.
+  // Read the folder again, but never before its size is known.
+  //
+  // maxScan below bounds what rebuild() reads out of the model. It does not
+  // bound the model: FolderListModel enumerates the whole directory, stats
+  // every entry and sorts the lot before QML can see a count at all, so by
+  // the time maxScan applies the expensive part already happened on the UI
+  // thread. Measured on 40k files, that walk is over a hundred milliseconds
+  // and it repeats on every change.
+  //
+  // So the size question is asked first, by a helper that counts entries
+  // without stat-ing them and stops at its own ceiling. Six milliseconds on
+  // that same 40k folder, because it never looks past the cap. Only a folder
+  // that comes back under the cap gets the model attached; anything larger is
+  // read by the helper instead, in a process that exits.
   function rescan() {
+    if (probeProc.running) return
+    probeProc.command = [root.helper, "probe", root.folderPath]
+    probeProc.running = true
+  }
+
+  // What probe said last. Null before the first answer, which is why nothing
+  // attaches the model until one lands.
+  property var folderProbe: null
+
+  function applyProbe(text) {
+    var data
+    try {
+      data = JSON.parse(text)
+    } catch (e) {
+      return
+    }
+    if (!data || data.ok !== true) return
+    root.folderProbe = data
+
+    if (data.over === true) {
+      // Too big to watch. Detach the model if it is attached, and read
+      // through the helper from here on.
+      root.polling = true
+      if (String(root.scanFolder) !== "") root.scanFolder = ""
+      root.readViaHelper()
+      return
+    }
+
+    root.polling = false
     if (String(root.scanFolder) === "") root.scanFolder = root.folderUrl
     else root.tick()
+  }
+
+  function readViaHelper() {
+    if (listProc.running) return
+    listProc.command = [root.helper, "list", root.folderPath]
+    listProc.running = true
+  }
+
+  // The helper's answer, in the same shape rebuild() produces from the model,
+  // so everything downstream is unaware of which path it came from.
+  function applyPayload(text) {
+    var data
+    try {
+      data = JSON.parse(text)
+    } catch (e) {
+      return
+    }
+    if (!data || data.ok !== true || !Array.isArray(data.files)) return
+
+    var out = []
+    var fresh = 0
+    var total = 0
+    var skipped = 0
+    var cutoff = root.now - root.freshMinutes * 60000
+
+    for (var i = 0; i < data.files.length; i++) {
+      var f = data.files[i]
+      var name = String(f.name || "")
+      if (name === "" || root.isPartial(name)) continue
+
+      var ms = Number(f.modified) || 0
+      var isFresh = ms >= cutoff
+
+      total++
+      if (isFresh) fresh++
+
+      if (!root.showAll && !isFresh) continue
+      if (out.length >= root.maxRows) { skipped++; continue }
+
+      out.push({
+        name: name,
+        url: "file://" + String(f.path || ""),
+        path: String(f.path || ""),
+        size: Number(f.size) || 0,
+        modified: ms,
+        fresh: isFresh
+      })
+    }
+
+    root.files = out
+    root.freshCount = fresh
+    root.totalCount = total
+    root.hiddenCount = skipped
+    // What the helper never looked at, plus what it read and left out.
+    root.uncountedCount = Number(data.hidden) || 0
   }
 
   // Every refresh that is not a direct answer to a click goes through here.
@@ -258,11 +377,23 @@ Singleton {
       Quickshell.execDetached(["xdg-open", target])
   }
 
-  onShowAllChanged: root.rescan()
+  // Flipping the filter is a question about what is already in hand, not
+  // about the folder, so it redraws from the last snapshot instead of asking
+  // for another probe.
+  onShowAllChanged: root.tick()
+
+  // A new folder is a new size question. Detach the model first: the old
+  // folder's answer says nothing about this one, and attaching before the
+  // probe is exactly the unbounded read this is here to prevent.
+  // The old snapshot stands until the new one lands, the same way it does
+  // between scans. Blanking the list here instead would hand the rows an
+  // empty model for as long as the probe takes, and a delegate reading a row
+  // that is not there any more is where the undefined bindings come from.
   onFolderUrlChanged: {
     root.polling = false
-    root.scanFolder = root.folderUrl
-    root.tick()
+    root.folderProbe = null
+    root.scanFolder = ""
+    root.rescan()
   }
 
   Timer {
@@ -270,6 +401,29 @@ Singleton {
     interval: 250
     repeat: false
     onTriggered: root.tick()
+  }
+
+  // Both commands go out as an argument array, never as a string a shell
+  // still has to split, so the folder path is an argument and nothing else.
+  // The script refuses anything that is not an absolute directory.
+  readonly property string helper:
+    Qt.resolvedUrl("bin/downloads").toString().replace(/^file:\/\//, "")
+
+  // Nothing reads the folder until this has answered once.
+  Component.onCompleted: root.rescan()
+
+  Process {
+    id: probeProc
+    stdout: StdioCollector {
+      onStreamFinished: root.applyProbe(text)
+    }
+  }
+
+  Process {
+    id: listProc
+    stdout: StdioCollector {
+      onStreamFinished: root.applyPayload(text)
+    }
   }
 
   FolderListModel {
