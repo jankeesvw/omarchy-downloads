@@ -135,9 +135,23 @@ Singleton {
     if (folder) root.folderUrl = folder
   }
 
-  function show() { root.rescan(); root.open = true }
+  function show() { root.showOn(null) }
   function hide() { root.open = false }
   function toggle() { root.open ? root.hide() : root.show() }
+
+  // One window, many bar copies. The widget that opened it passes that
+  // bar's screen so the list maps on the same output instead of Hyprland's
+  // last-used monitor. Null keeps the current screen (IPC with no opener).
+  function showOn(screen) {
+    // rescan rather than tick: tick redraws from the model, and the model is
+    // only attached once the probe has said the folder is small enough to
+    // read that way. Opening the window is exactly when that question wants
+    // asking again.
+    root.rescan()
+    if (screen)
+      win.screen = screen
+    root.open = true
+  }
 
   // Partial downloads: the browser is still writing these and the final name
   // is not known yet, so they are noise in the list and useless to drag.

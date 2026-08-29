@@ -77,7 +77,23 @@ Panel {
   // `opened` follows a summon over IPC, and the store follows a click or the
   // window's own close button. Both sides check before assigning, so the two
   // handlers cannot bounce a change back and forth.
-  onOpenedChanged: if (DownloadsStore.open !== root.opened) DownloadsStore.open = root.opened
+  //
+  // Only the widget that actually opened the store places the window. The
+  // other monitors' copies also flip `opened` (via Connections below) so
+  // their buttons highlight; they must not steal the screen afterwards.
+  function barScreen() {
+    var window = root.QsWindow ? root.QsWindow.window : null
+    return window ? window.screen : null
+  }
+
+  onOpenedChanged: {
+    if (root.opened) {
+      if (!DownloadsStore.open)
+        DownloadsStore.showOn(root.barScreen())
+    } else if (DownloadsStore.open) {
+      DownloadsStore.hide()
+    }
+  }
 
   Connections {
     target: DownloadsStore
