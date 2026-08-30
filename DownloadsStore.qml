@@ -324,6 +324,21 @@ Singleton {
     listProc.running = true
   }
 
+  // A path from the helper, as the URL the drag hands over.
+  //
+  // The model route never needed this because FolderListModel builds fileUrl
+  // itself and percent-encodes what has to be. Pasting "file://" in front of a
+  // raw path does not: a filename is bytes, and on Linux those bytes may
+  // include a newline. text/uri-list is one URI per line, so a name carrying a
+  // CR or LF turns one entry into two and a drag hands the receiving
+  // application a path nobody chose. Encoding per segment, rather than over
+  // the whole string, so the separators stay separators.
+  function fileUrl(path) {
+    var parts = String(path || "").split("/")
+    for (var i = 0; i < parts.length; i++) parts[i] = encodeURIComponent(parts[i])
+    return "file://" + parts.join("/")
+  }
+
   // The helper's answer, in the same shape rebuild() produces from the model,
   // so everything downstream is unaware of which path it came from.
   function applyPayload(text) {
@@ -357,7 +372,7 @@ Singleton {
 
       out.push({
         name: name,
-        url: "file://" + String(f.path || ""),
+        url: root.fileUrl(f.path),
         path: String(f.path || ""),
         size: Number(f.size) || 0,
         modified: ms,
