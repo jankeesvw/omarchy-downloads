@@ -11,19 +11,16 @@ minutes, so a finished download is visible without opening anything.
 |---|---|
 | ![The downloads popout on a dark theme](screenshots/panel.png) | ![The same popout on a light theme](screenshots/light.png) |
 
-## Why it opens a window and not a bar popup
+## A panel you can drag out of
 
-Because a drag has to start from a real toplevel window.
+The list opens as a layer-shell panel anchored to its bar button. It stays
+out of the tiling layout and closes with Esc or a click outside it. No
+Hyprland window rules are needed.
 
-Measured on Hyprland with Quickshell 0.3: a drag begun on a layer-shell
-surface — which is what every bar panel is — *is* accepted by the compositor,
-but the drag focus stays pinned to the source surface. The receiving window
-never gets `wl_data_device.enter`, nothing is ever dropped, and the panel stops
-responding to the mouse afterwards. The same QML in an ordinary window drops
-correctly on the first try.
-
-So the list is a real window. The Hyprland rules below make it read as a
-popout anyway.
+During a file drag, the panel limits its input region to the visible card
+and removes outside-click surfaces on other monitors. This lets the
+application under the pointer receive the drop. After the drag finishes or
+is cancelled, outside-click dismissal is restored.
 
 ## Installing
 
@@ -33,25 +30,9 @@ omarchy plugin enable jankeesvw.downloads
 omarchy bar move jankeesvw.downloads --section right
 ```
 
-### Make it behave like a popout
-
-Optional but recommended. Without these rules the list tiles like any other
-window; with them it floats under the bar on the right of the monitor that
-opened it. Add to `~/.config/hypr/windows.lua`:
-
-```lua
-o.window({ class = "^org.quickshell$", title = "^Downloads$" }, { tag = "-floating-window" })
-o.window({ class = "^org.quickshell$", title = "^Downloads$" }, { float = true })
-o.window({ class = "^org.quickshell$", title = "^Downloads$" }, { move = { "(monitor_w-window_w-2)", 34 } })
-```
-
-`window_w` is the surface. Hyprland draws `general:border_size` (2 by default)
-outside that box, so the extra 2px keeps the frame on the same output. A
-hardcoded width is short of the real frame and parks the list on the next
-monitor.
-
-Then `hyprctl reload`. Match on the title as well as the class: `org.quickshell`
-is every window the shell owns.
+If upgrading from the floating-window version, the old rules matching
+`org.quickshell` with title `Downloads` can be removed from your Hyprland
+configuration; this panel does not use them.
 
 ### A key for it
 
@@ -68,7 +49,7 @@ o.bind("SUPER + D", "Downloads", "omarchy-shell shell toggle jankeesvw.downloads
 | Drag a row | hand the file to whatever is under the cursor |
 | Double-click a row | open the file |
 | `Last N min` / `All` | show only what just arrived, or the whole folder |
-| `Esc` | close |
+| `Esc` or click outside | close |
 
 ## Settings
 
@@ -89,12 +70,12 @@ Set these on the plugin's entry in `~/.config/omarchy/shell.json`:
   are still being written and the final name is not known yet.
 - **The list caps at 200 rows, and a refresh reads at most 2000 files.** Both
   caps cut from the oldest end - the folder is read newest first - so a recent
-  download is never the thing that falls outside them. The window says what it
+  download is never the thing that falls outside them. The panel says what it
   left out rather than pretending the folder is smaller than it is.
 - **Not every change gets its own refresh.** A folder filling up reports one
   change per file, and those are collapsed into a single rebuild. A folder too
   large to watch cheaply is polled instead of watched - one read per interval
-  rather than one per file - and with the window closed the refresh backs off.
+  rather than one per file - and with the panel closed the refresh backs off.
   Below that size nothing changes: a download appears the moment it lands.
 - **A file that grows after it appears keeps its first size.** The folder
   watcher reports new and removed files, not writes to existing ones. Browsers
@@ -111,11 +92,8 @@ state of its own: it reads the download folder through Qt's folder model and
 keeps everything in memory. There is no directory to clean up and nothing about
 your files is stored anywhere.
 
-Two things outside the plugin do survive, both put there by you:
-
-- the entry in `~/.config/omarchy/shell.json`, removed by the command above
-- the Hyprland rules from the popout section, if you added them — delete them
-  from `~/.config/hypr/windows.lua` and run `hyprctl reload`
+If you added Hyprland window rules for an older version, remove those
+separately from your Hyprland configuration.
 
 ## Privacy
 

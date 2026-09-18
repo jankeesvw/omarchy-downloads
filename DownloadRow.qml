@@ -12,18 +12,8 @@ import qs.Commons
 // for fields that only take text. The URL comes from FolderListModel, which
 // percent-encodes it, so names with spaces survive.
 //
-// The Drag attached property and the MouseArea's drag.target sit on the same
-// item, `dragHandle`, and that pairing is deliberate:
-//
-//   - drag.target has to be *something*, and whatever it is gets moved. Point
-//     it at this row and the row slides out from under the cursor, because a
-//     ListView delegate's x/y belong to the view.
-//   - splitting them - Drag on the row, drag.target on a proxy - makes QML
-//     report a binding loop on `active` and the drag never becomes reliable.
-//
-// So a one-pixel handle carries both, and the drag image comes from
-// grabToImage() on the row: you drag a picture of the row without the row
-// itself going anywhere.
+// Detect the gesture without moving a target. ListView exclusively owns the
+// delegate coordinates; the compositor moves only the captured drag image.
 Item {
   id: row
 
@@ -38,23 +28,7 @@ Item {
   implicitHeight: Style.space(34)
   height: implicitHeight
 
-  // Carries both the drag payload and the movement. One pixel, invisible;
-  // moving it moves nothing anyone can see.
-  // Note for anyone testing this on an empty workspace: the compositor does
-  // not begin a drag when there is no other window that could receive it.
-  // Measured on Hyprland - with a window present the drag starts every time,
-  // on a bare workspace it never does. That is compositor behaviour, not a
-  // bug here, but it will look like the drag is broken.
-  //
-  // Drag and drag.target both live on this row, deliberately. Splitting them
-  // over a separate handle - even a sized, transparent one - makes the drag
-  // start and finish in the same instant: dragStarted and dragFinished land
-  // back to back in the log, the cursor picks up nothing, and no drop ever
-  // happens. Qt carries the drag from the item that owns both.
-  //
-  // The row does get moved by the drag, but Drag.Automatic hands the pointer
-  // to the compositor immediately, so it never travels far enough to see.
-  Drag.active: mouse.drag.active
+  Drag.active: fileDrag.active
   Drag.dragType: Drag.Automatic
   Drag.supportedActions: Qt.CopyAction
   Drag.mimeData: ({
@@ -62,7 +36,19 @@ Item {
     "text/plain": String(row.file.url || "")
   })
   Drag.onDragStarted: if (row.store) row.store.draggingUrl = String(row.file.url || "")
-  Drag.onDragFinished: if (row.store) row.store.draggingUrl = ""
+  // A drag is the end of the errand, so the panel goes with it. Left open,
+  // it keeps its full-screen click catcher, and the next click in the app
+  // you just dropped into (Send, say) only dismisses the panel and never
+  // reaches the app. This closes on every finished drag rather than only on
+  // a drop that landed: on Wayland the action handed back here is
+  // IgnoreAction even for a drop that foot accepted and pasted, so it says
+  // nothing about where the file went. A drag let go over nothing costs one
+  // click to reopen, which is cheaper than a swallowed click every time.
+  Drag.onDragFinished: {
+    if (!row.store) return
+    row.store.draggingUrl = ""
+    row.store.open = false
+  }
 
   Rectangle {
     anchors.fill: parent
@@ -134,14 +120,18 @@ Item {
     }
   }
 
+  DragHandler {
+    id: fileDrag
+    target: null
+    acceptedButtons: Qt.LeftButton
+    dragThreshold: Style.space(6)
+  }
+
   MouseArea {
     id: mouse
     anchors.fill: parent
     hoverEnabled: true
-    cursorShape: mouse.drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-    drag.target: row
-    drag.threshold: Style.space(6)
-
+    cursorShape: fileDrag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
     // Grab a picture of the row on press, so the drag carries something you
     // can recognise. Asynchronous, but press comes well before the drag
     // threshold; if it is not ready the drag simply has no image.

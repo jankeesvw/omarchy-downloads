@@ -7,21 +7,14 @@ import qs.Ui
 //
 // The button carries a badge with the number of files that arrived within the
 // last few minutes, so a finished download is visible without opening
-// anything. Clicking opens a window whose rows are drag handles, so a file
+// anything. Clicking opens a panel whose rows are drag handles, so a file
 // goes straight into the upload field or chat window that needs it.
 //
-// Everything that has state - the folder, the list, the window - lives in
+// Everything that has state - the folder, the list, the popup - lives in
 // DownloadsStore, a singleton. A bar widget is instantiated once per monitor,
-// so a window declared here would exist twice on a two-monitor setup. This
+// so a popup declared here would exist twice on a two-monitor setup. This
 // file is the view: a button, a badge, and a way to reach the store.
 //
-// Why the list is a FloatingWindow and not the usual KeyboardPanel: a drag
-// has to start from a real toplevel window. Measured on Hyprland with
-// Quickshell 0.3 - a drag begun on a layer-shell surface is accepted by the
-// compositor, but the drag focus stays pinned to the source surface. The
-// receiving window never gets `wl_data_device.enter`, so nothing is ever
-// dropped, and the panel stops responding to the mouse afterwards. The same
-// QML in a normal window drops correctly on the first try.
 Panel {
   id: root
 
@@ -73,23 +66,18 @@ Panel {
   onSettingsChanged: root.applySettings()
   Component.onCompleted: root.applySettings()
 
-  // The bar button and the window mirror each other, in both directions:
+  // The bar button and the popup mirror each other, in both directions:
   // `opened` follows a summon over IPC, and the store follows a click or the
-  // window's own close button. Both sides check before assigning, so the two
+  // popup's outside-click dismissal. Both sides check before assigning, so the two
   // handlers cannot bounce a change back and forth.
   //
-  // Only the widget that actually opened the store places the window. The
+  // Only the widget that actually opened the store places the popup. The
   // other monitors' copies also flip `opened` (via Connections below) so
   // their buttons highlight; they must not steal the screen afterwards.
-  function barScreen() {
-    var window = root.QsWindow ? root.QsWindow.window : null
-    return window ? window.screen : null
-  }
-
   onOpenedChanged: {
     if (root.opened) {
       if (!DownloadsStore.open)
-        DownloadsStore.showOn(root.barScreen())
+        DownloadsStore.showOn(button, root.bar, root)
     } else if (DownloadsStore.open) {
       DownloadsStore.hide()
     }
@@ -127,7 +115,8 @@ Panel {
             font.family: root.fontFamily
             font.pixelSize: Style.bar.iconFont
             renderType: Text.NativeRendering
-            color: (root.opened || root.hasFresh) ? root.accent : root.foreground
+            // Opening is marked by the bar's underline; accent means new files.
+            color: root.hasFresh ? root.accent : root.foreground
           }
 
           Rectangle {
@@ -138,8 +127,20 @@ Panel {
             radius: height / 2
             color: root.accent
 
+            FontMetrics {
+              id: badgeMetrics
+              font: badgeLabel.font
+            }
+
             Text {
+              id: badgeLabel
               anchors.centerIn: parent
+              // Center the cap-height band, accounting for centerIn's rounded half-height.
+              // Snap the correction to device pixels to keep native text crisp.
+              readonly property real pixelRatio: QsWindow.window ? QsWindow.window.devicePixelRatio : 1
+              anchors.verticalCenterOffset: Math.round((Math.round(height / 2) - baselineOffset
+                + badgeMetrics.capitalHeight / 2)
+                * pixelRatio) / pixelRatio
               text: root.freshCount
               textFormat: Text.PlainText
               font.family: root.fontFamily

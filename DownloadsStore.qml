@@ -9,13 +9,11 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// The download folder, and the one window that shows it.
+// The download folder, and the shared popup that shows it.
 //
 // This is a singleton because a bar widget is instantiated once per monitor.
-// With the window declared in the widget, a two-monitor setup gets two
-// windows: clicking opens one, `shell summon` opens both, and closing one
-// leaves the other behind. Measured, not guessed. Keeping the model and the
-// window here means every bar button is a view onto the same thing.
+// Keeping the model and popup here gives every monitor a view onto the
+// same state, and prevents IPC from opening a separate popup per monitor.
 //
 // A normal download folder is read by FolderListModel: no shell, no quoting,
 // and no path from a filename into an exec. A folder too large to read that
@@ -43,8 +41,7 @@ Singleton {
   readonly property string folderPath: String(root.folderUrl).replace(/^file:\/\//, "")
 
   // The header names the folder it is showing, shortened the way a shell
-  // prompt would. Note this is not the window title: that stays "Downloads",
-  // because the Hyprland rule that floats this window matches on it.
+  // prompt would.
   readonly property string homePath:
     String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).replace(/^file:\/\//, "")
   // The Button tooltip is drawn by the shell's component, so textFormat there
@@ -135,21 +132,23 @@ Singleton {
     if (folder) root.folderUrl = folder
   }
 
-  function show() { root.showOn(null) }
+  function show() { root.showOn(null, null, null) }
   function hide() { root.open = false }
   function toggle() { root.open ? root.hide() : root.show() }
 
-  // One window, many bar copies. The widget that opened it passes that
-  // bar's screen so the list maps on the same output instead of Hyprland's
-  // last-used monitor. Null keeps the current screen (IPC with no opener).
-  function showOn(screen) {
+  // One popup, many bar copies. Keep the opening widget as the anchor so
+  // the card follows its bar position and monitor.
+  function showOn(anchor, bar, owner) {
     // rescan rather than tick: tick redraws from the model, and the model is
     // only attached once the probe has said the folder is small enough to
     // read that way. Opening the window is exactly when that question wants
     // asking again.
     root.rescan()
-    if (screen)
-      win.screen = screen
+    if (anchor) {
+      win.anchorItem = anchor
+      win.bar = bar
+      win.owner = owner
+    }
     root.open = true
   }
 
@@ -487,13 +486,12 @@ Singleton {
     onTriggered: root.rescan()
   }
 
-  FloatingWindow {
+  DownloadsPopup {
     id: win
 
-    visible: root.open
-    title: "Downloads"
-    color: Color.popups.background
-    implicitWidth: Style.space(520)
+    open: root.open
+    dragging: root.draggingUrl !== ""
+    contentWidth: Style.space(520)
 
     // The height follows the list instead of being a fixed box: with two
     // downloads in it, a 560px window is mostly empty, which reads as a
@@ -504,15 +502,9 @@ Singleton {
     readonly property int chromeHeight: Style.space(104)
     readonly property int listHeight: Math.min(Style.space(420),
       Math.max(Style.space(64), root.files.length * rowStride))
-    implicitHeight: chromeHeight + listHeight
+    contentHeight: chromeHeight + listHeight
 
-    minimumSize: Qt.size(Style.space(360), Style.space(160))
-
-    // Closing from the window's own titlebar has to reach the store, or the
-    // bar buttons keep thinking the window is up and the next click does
-    // nothing. Guarded, so the assignment made while opening does not come
-    // straight back in here.
-    onVisibleChanged: if (!visible && root.open) root.open = false
+    onDismissed: root.hide()
 
     FocusScope {
       anchors.fill: parent
