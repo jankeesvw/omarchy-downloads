@@ -36,7 +36,19 @@ Item {
     "text/plain": String(row.file.url || "")
   })
   Drag.onDragStarted: if (row.store) row.store.draggingUrl = String(row.file.url || "")
-  Drag.onDragFinished: if (row.store) row.store.draggingUrl = ""
+  // A drag is the end of the errand, so the panel goes with it. Left open,
+  // it keeps its full-screen click catcher, and the next click in the app
+  // you just dropped into (Send, say) only dismisses the panel and never
+  // reaches the app. This closes on every finished drag rather than only on
+  // a drop that landed: on Wayland the action handed back here is
+  // IgnoreAction even for a drop that foot accepted and pasted, so it says
+  // nothing about where the file went. A drag let go over nothing costs one
+  // click to reopen, which is cheaper than a swallowed click every time.
+  Drag.onDragFinished: {
+    if (!row.store) return
+    row.store.draggingUrl = ""
+    row.store.open = false
+  }
 
   Rectangle {
     anchors.fill: parent

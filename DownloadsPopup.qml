@@ -83,41 +83,16 @@ PanelWindow {
   }
   Timer { id: prime; interval: 75; onTriggered: popup.focusPrimed = true }
 
+  // Any click outside the card closes the panel, a click on the bar
+  // included. KeyboardPanel forwards bar clicks so another widget can open
+  // in the same click, but a plugin only ever sees its own click targets
+  // (PluginBarApi hands each plugin its own list), so from here the only
+  // button that could be found is ours, and that one toggles closed anyway.
   MouseArea {
     anchors.fill: parent
     enabled: popup.open && !popup.dragging
     acceptedButtons: Qt.AllButtons
-    onClicked: function(mouse) {
-      // Forward bar clicks so the downloads button toggles closed and a
-      // different widget can open in the same click, as with KeyboardPanel.
-      if (popup.bar && popup.bar.clickTargets && popup.anchorWindow) {
-        var p = Qt.point(mouse.x, mouse.y)
-        var inBar = false
-        if (popup.barPosition === "top") inBar = p.y < popup.anchorWindow.height
-        else if (popup.barPosition === "bottom") {
-          p.y -= popup.height - popup.anchorWindow.height
-          inBar = p.y >= 0
-        } else if (popup.barPosition === "left") inBar = p.x < popup.anchorWindow.width
-        else {
-          p.x -= popup.width - popup.anchorWindow.width
-          inBar = p.x >= 0
-        }
-        if (inBar) {
-          var targets = popup.bar.clickTargets
-          for (var i = targets.length - 1; i >= 0; i--) {
-            var target = targets[i]
-            if (!target || !target.triggerPress || !target.visible || target.opacity === 0) continue
-            if (popup.bar.targetBelongsToWindow && !popup.bar.targetBelongsToWindow(target, popup.anchorWindow)) continue
-            var pos = popup.anchorWindow.itemPosition(target)
-            if (p.x >= pos.x && p.x <= pos.x + target.width && p.y >= pos.y && p.y <= pos.y + target.height) {
-              target.triggerPress(mouse.button)
-              return
-            }
-          }
-        }
-      }
-      popup.close()
-    }
+    onClicked: popup.close()
   }
 
   // Dismiss clicks on other monitors too, but let drags reach their windows.
