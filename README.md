@@ -51,6 +51,10 @@ o.bind("SUPER + D", "Downloads", "omarchy-shell shell toggle jankeesvw.downloads
 | `Last N min` / `All` | show only what just arrived, or the whole folder |
 | `Esc` or click outside | close |
 
+Downloaded folders appear alongside files, sorted by modification time. They
+use a folder icon; double-click opens them in your file manager, and dragging
+hands over the folder. Contents are not scanned recursively.
+
 ## Settings
 
 Set these on the plugin's entry in `~/.config/omarchy/shell.json`:

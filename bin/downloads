@@ -77,12 +77,13 @@ try:
                 break
             scanned += 1
             try:
-                if not entry.is_file(follow_symlinks=False):
+                is_dir = entry.is_dir(follow_symlinks=False)
+                if not is_dir and not entry.is_file(follow_symlinks=False):
                     continue
                 stat = entry.stat(follow_symlinks=False)
             except OSError:
                 continue
-            rows.append((stat.st_mtime, stat.st_size, entry.name))
+            rows.append((stat.st_mtime, stat.st_size, entry.name, is_dir))
 except OSError as exc:
     print(json.dumps({"ok": False, "error": str(exc)}))
     sys.exit(0)
@@ -98,9 +99,10 @@ files = [
         "name": name,
         "path": os.path.join(directory, name),
         "size": size,
+        "isDir": is_dir,
         "modified": int(mtime * 1000),
     }
-    for (mtime, size, name) in rows
+    for (mtime, size, name, is_dir) in rows
 ]
 
 print(json.dumps({
