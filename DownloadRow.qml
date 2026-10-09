@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import qs.Commons
 
+import qs.Commons as Commons
 // One file in the download list, and the thing you actually drag.
 //
 // The drag is the point of this widget, so a note on how it is wired.
@@ -54,10 +55,10 @@ Item {
     anchors.fill: parent
     radius: Style.space(4)
     color: row.dragging
-      ? Util.alpha(Color.accent, 0.22)
-      : (mouse.containsMouse ? Util.alpha(Color.foreground, 0.10) : "transparent")
+      ? Util.alpha(Commons.Color.accent, 0.22)
+      : (mouse.containsMouse ? Util.alpha(Commons.Color.foreground, 0.10) : "transparent")
     border.width: row.dragging ? Style.spacing.hairline : 0
-    border.color: Color.accent
+    border.color: Commons.Color.accent
   }
 
   // A RowLayout rather than a Row: the name has to take whatever is left
@@ -77,7 +78,7 @@ Item {
       implicitWidth: Style.space(5)
       implicitHeight: Style.space(5)
       radius: implicitWidth / 2
-      color: row.fresh ? Color.accent : "transparent"
+      color: row.fresh ? Commons.Color.accent : "transparent"
     }
 
     Text {
@@ -87,7 +88,7 @@ Item {
       font.family: String((row.store && row.store.fontFamily) || Style.font.family || "")
       font.pixelSize: Style.font.icon
       renderType: Text.NativeRendering
-      color: row.fresh ? Color.accent : Color.muted
+      color: row.fresh ? Commons.Color.accent : Commons.Color.muted
     }
 
     // The filename is chosen by whoever made the file, so PlainText, always.
@@ -103,7 +104,7 @@ Item {
       font.family: String((row.store && row.store.fontFamily) || Style.font.family || "")
       font.pixelSize: Style.font.body
       renderType: Text.NativeRendering
-      color: Color.foreground
+      color: Commons.Color.foreground
     }
 
     Text {
@@ -116,7 +117,7 @@ Item {
       font.family: String((row.store && row.store.fontFamily) || Style.font.family || "")
       font.pixelSize: Style.font.caption
       renderType: Text.NativeRendering
-      color: Color.muted
+      color: Commons.Color.muted
     }
   }
 
