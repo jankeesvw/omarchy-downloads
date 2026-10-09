@@ -76,6 +76,10 @@ try:
                 truncated = True
                 break
             scanned += 1
+            # Dot entries stay out, as they do for the folder model
+            # (showHidden: false), so both routes show the same thing.
+            if entry.name.startswith("."):
+                continue
             try:
                 is_dir = entry.is_dir(follow_symlinks=False)
                 if not is_dir and not entry.is_file(follow_symlinks=False):

@@ -627,7 +627,7 @@ Singleton {
             ? "Nothing in " + root.displayPath
             : "Nothing in the last " + root.freshMinutes + " minutes.\n"
               + (root.uncountedCount > 0 ? "More than " : "")
-              + root.totalCount + " files in the folder."
+              + root.totalCount + (root.totalCount === 1 ? " item" : " items") + " in the folder."
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
           renderType: Text.NativeRendering
@@ -639,7 +639,7 @@ Singleton {
           visible: root.hiddenCount > 0 || root.uncountedCount > 0
           textFormat: Text.PlainText
           text: root.uncountedCount > 0
-            ? "Newest " + root.files.length + " of more than " + root.maxScan + " files"
+            ? "Newest " + root.files.length + " of more than " + root.maxScan + " items"
             : "+ " + root.hiddenCount + " more not shown"
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

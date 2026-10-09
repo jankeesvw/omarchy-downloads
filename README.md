@@ -51,9 +51,7 @@ o.bind("SUPER + D", "Downloads", "omarchy-shell shell toggle jankeesvw.downloads
 | `Last N min` / `All` | show only what just arrived, or the whole folder |
 | `Esc` or click outside | close |
 
-Downloaded folders appear alongside files, sorted by modification time. They
-use a folder icon; double-click opens them in your file manager, and dragging
-hands over the folder. Contents are not scanned recursively.
+Downloaded folders appear alongside files, sorted by modification time. They use a folder icon, double-click opens them in your file manager, and dragging hands over the folder. Contents are not scanned recursively.
 
 ## Settings
 
@@ -84,6 +82,7 @@ Set these on the plugin's entry in `~/.config/omarchy/shell.json`:
 - **A file that grows after it appears keeps its first size.** The folder
   watcher reports new and removed files, not writes to existing ones. Browsers
   rename on completion, so finished downloads are accurate.
+- **A folder shows when the folder itself last changed.** A folder moved in from elsewhere keeps its old time, so it may not count as just arrived, and writing inside a folder does not refresh its row right away.
 
 ## Removing it
 
@@ -101,10 +100,7 @@ separately from your Hyprland configuration.
 
 ## Privacy
 
-Filenames never leave your machine. There is no network access, no telemetry,
-and no helper script — the plugin is QML that reads a directory listing.
-Filenames are rendered as `Text.PlainText` throughout, so a file named to look
-like markup cannot make the shell fetch a remote image.
+Filenames never leave your machine. There is no network access and no telemetry. The plugin is QML that reads a directory listing, with a small local helper script (`bin/downloads`) that reads large folders outside the shell. Filenames are rendered as `Text.PlainText` throughout, so a file named to look like markup cannot make the shell fetch a remote image.
 
 ## License
 
