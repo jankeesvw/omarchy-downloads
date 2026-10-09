@@ -164,7 +164,8 @@ Singleton {
     return m ? m[1].toLowerCase() : ""
   }
 
-  function iconFor(name) {
+  function iconFor(name, isDir) {
+    if (isDir) return root.iconFolder
     var s = root.suffixOf(name)
     if (/^(png|jpg|jpeg|gif|webp|bmp|svg|avif|heic|ico|tiff?)$/.test(s)) return root.iconImage
     if (s === "pdf") return root.iconPdf
@@ -231,6 +232,7 @@ Singleton {
         url: String(folderModel.get(i, "fileUrl") || ""),
         path: String(folderModel.get(i, "filePath") || ""),
         size: Number(folderModel.get(i, "fileSize")) || 0,
+        isDir: !!folderModel.get(i, "fileIsDir"),
         modified: ms,
         fresh: isFresh
       })
@@ -375,6 +377,7 @@ Singleton {
         url: root.fileUrl(f.path),
         path: String(f.path || ""),
         size: Number(f.size) || 0,
+        isDir: f.isDir === true,
         modified: ms,
         fresh: isFresh
       })
@@ -458,7 +461,7 @@ Singleton {
   FolderListModel {
     id: folderModel
     folder: root.scanFolder
-    showDirs: false
+    showDirs: true
     showHidden: false
     showDotAndDotDot: false
     // Time sorting comes back newest first, which is the order the window
@@ -625,7 +628,7 @@ Singleton {
             ? "Nothing in " + root.displayPath
             : "Nothing in the last " + root.freshMinutes + " minutes.\n"
               + (root.uncountedCount > 0 ? "More than " : "")
-              + root.totalCount + " files in the folder."
+              + root.totalCount + (root.totalCount === 1 ? " item" : " items") + " in the folder."
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
           renderType: Text.NativeRendering
@@ -637,7 +640,7 @@ Singleton {
           visible: root.hiddenCount > 0 || root.uncountedCount > 0
           textFormat: Text.PlainText
           text: root.uncountedCount > 0
-            ? "Newest " + root.files.length + " of more than " + root.maxScan + " files"
+            ? "Newest " + root.files.length + " of more than " + root.maxScan + " items"
             : "+ " + root.hiddenCount + " more not shown"
           font.family: root.fontFamily
           font.pixelSize: Style.font.caption

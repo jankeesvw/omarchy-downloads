@@ -20,7 +20,7 @@ Item {
 
   // The DownloadsStore, for formatting helpers and shared drag state.
   property var store: null
-  // { name, url, path, size, modified, fresh }
+  // { name, url, path, size, isDir, modified, fresh }
   property var file: ({})
 
   readonly property bool dragging: store !== null && !!file && store.draggingUrl === file.url
@@ -83,7 +83,7 @@ Item {
 
     Text {
       Layout.alignment: Qt.AlignVCenter
-      text: (row.store && row.store.iconFor && row.file) ? String(row.store.iconFor(row.file.name) || "") : ""
+      text: (row.store && row.store.iconFor && row.file) ? String(row.store.iconFor(row.file.name, row.file.isDir) || "") : ""
       textFormat: Text.PlainText
       font.family: String((row.store && row.store.fontFamily) || Style.font.family || "")
       font.pixelSize: Style.font.icon
@@ -111,7 +111,7 @@ Item {
       Layout.alignment: Qt.AlignVCenter
       text: (row.store && row.store.formatAge && row.file)
         ? String(row.store.formatAge(row.file.modified) || "")
-          + (row.file.size > 0 ? "  ·  " + String(row.store.formatSize(row.file.size) || "") : "")
+          + (!row.file.isDir && row.file.size > 0 ? "  ·  " + String(row.store.formatSize(row.file.size) || "") : "")
         : ""
       textFormat: Text.PlainText
       font.family: String((row.store && row.store.fontFamily) || Style.font.family || "")
