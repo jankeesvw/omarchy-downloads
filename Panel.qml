@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // Downloads: what just landed in the download folder, one click from the bar.
@@ -21,8 +22,8 @@ Panel {
   moduleName: "jankeesvw.downloads"
   ipcTarget: "jankeesvw.downloads"
 
-  readonly property color foreground: bar ? bar.foreground : Color.foreground
-  readonly property color accent: Color.accent
+  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+  readonly property color accent: Commons.Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
   readonly property int freshCount: DownloadsStore.freshCount
@@ -146,7 +147,7 @@ Panel {
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
               renderType: Text.NativeRendering
-              color: Color.background
+              color: Commons.Color.background
             }
           }
         }

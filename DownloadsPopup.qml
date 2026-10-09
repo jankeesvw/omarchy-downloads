@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 // A layer-shell card with outside-click dismissal. During a native drag,
@@ -118,8 +119,8 @@ PanelWindow {
     id: card
     x: popup.cardPosition.x; y: popup.cardPosition.y
     width: popup.cardWidth; height: popup.cardHeight
-    color: Color.popups.background
-    borderSpec: Border.surfaceSpec("popups", "border", Color.popups.border, Math.max(1, Style.space(2)))
+    color: Commons.Color.popups.background
+    borderSpec: Border.surfaceSpec("popups", "border", Commons.Color.popups.border, Math.max(1, Style.space(2)))
     padding: 0
     radius: Style.cornerRadius
     MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons }
