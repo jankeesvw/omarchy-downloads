@@ -39,12 +39,29 @@ Singleton {
   property int freshMinutes: 5
   property url folderUrl: StandardPaths.writableLocation(StandardPaths.DownloadLocation)
 
-  readonly property string folderPath: String(root.folderUrl).replace(/^file:\/\//, "")
+  readonly property string folderPath: root.localPath(root.folderUrl)
+
+  // The path a file:// url names, for the helper, xdg-open and the header.
+  // Stripping the scheme is not enough: a url keeps some characters
+  // percent-encoded even when it is turned back into a string, so a folder
+  // called "100% done" or "a#b" comes out as "100%25 done" and "a%23b", a
+  // directory that does not exist. Those are exactly the characters Qt still
+  // encodes, so decoding them restores the name; a literal % never reaches
+  // decodeURIComponent unencoded. The catch is for a string that was never
+  // a url to begin with, which is better passed along than thrown on.
+  function localPath(u) {
+    var s = String(u || "").replace(/^file:\/\//, "")
+    try {
+      return decodeURIComponent(s)
+    } catch (e) {
+      return s
+    }
+  }
 
   // The header names the folder it is showing, shortened the way a shell
   // prompt would.
   readonly property string homePath:
-    String(StandardPaths.writableLocation(StandardPaths.HomeLocation)).replace(/^file:\/\//, "")
+    root.localPath(StandardPaths.writableLocation(StandardPaths.HomeLocation))
   // The Button tooltip is drawn by the shell's component, so textFormat there
   // is not ours to set. Strip the characters that could make it rich text.
   function plain(s) { return String(s || "").replace(/[<>]/g, "") }
