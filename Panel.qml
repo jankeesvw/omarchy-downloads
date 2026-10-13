@@ -29,9 +29,7 @@ Panel {
   readonly property int freshCount: DownloadsStore.freshCount
   readonly property bool hasFresh: freshCount > 0
 
-  // Width of the badge and of the whole icon+badge row. Computed here rather
-  // than inside iconComponent: that Component has its own scope, and ids
-  // declared in it are invisible out here.
+  // Width of the badge and of the whole icon+badge row.
   readonly property int badgeWidth: freshCount > 0
     ? Math.max(Style.space(12), String(freshCount).length * Style.space(6) + Style.space(8))
     : 0
@@ -97,58 +95,57 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     slotSize: root.barSlot
-    // The icon component is loaded into a square canvas of opticalSize, meant
-    // for a single glyph. Widen it too, or the icon falls outside it and only
-    // the badge survives.
-    opticalSize: root.barContentWidth
     tooltipText: ""
 
-    iconComponent: Component {
-      Item {
-        Row {
-          anchors.centerIn: parent
-          spacing: Style.space(5)
+    // Not an iconComponent: the shell scales that down to icon size, which
+    // would shrink the count next to the icon to a smudge.
+    hasVisualContent: true
 
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: DownloadsStore.iconDownload
-            textFormat: Text.PlainText
-            font.family: root.fontFamily
-            font.pixelSize: Style.bar.iconFont
-            renderType: Text.NativeRendering
-            // Opening is marked by the bar's underline; accent means new files.
-            color: root.hasFresh ? root.accent : root.foreground
+    Item {
+      anchors.fill: parent
+      Row {
+        anchors.centerIn: parent
+        spacing: Style.space(5)
+
+        Text {
+          anchors.verticalCenter: parent.verticalCenter
+          text: DownloadsStore.iconDownload
+          textFormat: Text.PlainText
+          font.family: root.fontFamily
+          font.pixelSize: Style.bar.iconFont
+          renderType: Text.NativeRendering
+          // Opening is marked by the bar's underline; accent means new files.
+          color: root.hasFresh ? root.accent : root.foreground
+        }
+
+        Rectangle {
+          anchors.verticalCenter: parent.verticalCenter
+          visible: root.freshCount > 0
+          height: Style.space(12)
+          width: root.badgeWidth
+          radius: height / 2
+          color: root.accent
+
+          FontMetrics {
+            id: badgeMetrics
+            font: badgeLabel.font
           }
 
-          Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.freshCount > 0
-            height: Style.space(12)
-            width: root.badgeWidth
-            radius: height / 2
-            color: root.accent
-
-            FontMetrics {
-              id: badgeMetrics
-              font: badgeLabel.font
-            }
-
-            Text {
-              id: badgeLabel
-              anchors.centerIn: parent
-              // Center the cap-height band, accounting for centerIn's rounded half-height.
-              // Snap the correction to device pixels to keep native text crisp.
-              readonly property real pixelRatio: QsWindow.window ? QsWindow.window.devicePixelRatio : 1
-              anchors.verticalCenterOffset: Math.round((Math.round(height / 2) - baselineOffset
-                + badgeMetrics.capitalHeight / 2)
-                * pixelRatio) / pixelRatio
-              text: root.freshCount
-              textFormat: Text.PlainText
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              renderType: Text.NativeRendering
-              color: Commons.Color.background
-            }
+          Text {
+            id: badgeLabel
+            anchors.centerIn: parent
+            // Center the cap-height band, accounting for centerIn's rounded half-height.
+            // Snap the correction to device pixels to keep native text crisp.
+            readonly property real pixelRatio: QsWindow.window ? QsWindow.window.devicePixelRatio : 1
+            anchors.verticalCenterOffset: Math.round((Math.round(height / 2) - baselineOffset
+              + badgeMetrics.capitalHeight / 2)
+              * pixelRatio) / pixelRatio
+            text: root.freshCount
+            textFormat: Text.PlainText
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            renderType: Text.NativeRendering
+            color: Commons.Color.background
           }
         }
       }
