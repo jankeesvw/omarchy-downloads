@@ -55,8 +55,16 @@ Panel {
   // widget, so a Component.onCompleted that reads them runs while the object
   // is still empty. Doing it only there meant `folder` and `freshMinutes`
   // were silently ignored.
+  //
+  // `folder` is a plain path, and a plain path is often written the way a
+  // shell would take it, from home. Nothing here runs a shell, so a leading
+  // ~ is expanded by hand. Left alone, "~/Stuff" becomes file://~/Stuff,
+  // which Qt rejects as a url with "~" for a host, so the store is handed an
+  // empty folder and the popup stays empty without saying why.
   function applySettings() {
     var folder = String(root.setting("folder", ""))
+    if (folder === "~" || folder.indexOf("~/") === 0)
+      folder = DownloadsStore.homePath + folder.slice(1)
     DownloadsStore.configure(root.setting("freshMinutes", 5),
                              folder !== "" ? Util.fileUrl(folder) : undefined)
     DownloadsStore.fontFamily = root.fontFamily

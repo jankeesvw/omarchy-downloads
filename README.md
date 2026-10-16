@@ -60,7 +60,7 @@ Set these on the plugin's entry in `~/.config/omarchy/shell.json`:
 | Setting | Default | What it does |
 |---|---|---|
 | `freshMinutes` | `5` | How recent a file counts as "just arrived" — drives the badge, the accent, and the first filter |
-| `folder` | XDG download dir | Watch a different folder, as a plain path |
+| `folder` | XDG download dir | Watch a different folder, as a plain path (`~/` is expanded to your home) |
 
 ```json
 { "id": "jankeesvw.downloads", "freshMinutes": 10 }
