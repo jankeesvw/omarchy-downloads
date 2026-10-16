@@ -80,11 +80,15 @@ try:
             # (showHidden: false), so both routes show the same thing.
             if entry.name.startswith("."):
                 continue
+            # Symlinks are followed, again because the folder model does:
+            # a link to a file or a folder is listed as what it points at,
+            # with the target's size and time, and a dangling link (or
+            # anything that is neither file nor folder) is left out.
             try:
-                is_dir = entry.is_dir(follow_symlinks=False)
-                if not is_dir and not entry.is_file(follow_symlinks=False):
+                is_dir = entry.is_dir()
+                if not is_dir and not entry.is_file():
                     continue
-                stat = entry.stat(follow_symlinks=False)
+                stat = entry.stat()
             except OSError:
                 continue
             rows.append((stat.st_mtime, stat.st_size, entry.name, is_dir))
