@@ -34,8 +34,15 @@ valid_dir() {
   # Absolute path only: a folder setting like "-foo" or a relative one has no
   # business reaching a readdir, and refusing is cheaper than repairing.
   [[ $d == /* ]] || return 1
+  # -d follows a symlink, and that is wanted. A download folder that is a
+  # link to somewhere else - a synced folder, a NAS mount, another disk - is
+  # common, and both readers below follow it too: ls lists what the link
+  # points at, and os.scandir opens it like any other directory. Refusing it
+  # bought nothing and cost a window that stays empty: a probe that says no
+  # looks the same to QML as one that never answered. A link to a file or to
+  # nothing still fails here. Links inside the folder are a separate question,
+  # answered in list.
   [[ -d $d ]] || return 1
-  [[ ! -L $d ]] || return 1
   return 0
 }
 
