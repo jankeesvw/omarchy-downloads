@@ -227,10 +227,12 @@ Singleton {
       if (!root.showAll && !isFresh) continue
       if (out.length >= root.maxRows) { skipped++; continue }
 
+      // Not the model's own fileUrl. See fileUrl() below for why.
+      var path = String(folderModel.get(i, "filePath") || "")
       out.push({
         name: name,
-        url: String(folderModel.get(i, "fileUrl") || ""),
-        path: String(folderModel.get(i, "filePath") || ""),
+        url: root.fileUrl(path),
+        path: path,
         size: Number(folderModel.get(i, "fileSize")) || 0,
         isDir: !!folderModel.get(i, "fileIsDir"),
         modified: ms,
@@ -326,15 +328,23 @@ Singleton {
     listProc.running = true
   }
 
-  // A path from the helper, as the URL the drag hands over.
+  // A path, as the URL the drag hands over. Both routes go through here.
   //
-  // The model route never needed this because FolderListModel builds fileUrl
-  // itself and percent-encodes what has to be. Pasting "file://" in front of a
-  // raw path does not: a filename is bytes, and on Linux those bytes may
-  // include a newline. text/uri-list is one URI per line, so a name carrying a
-  // CR or LF turns one entry into two and a drag hands the receiving
-  // application a path nobody chose. Encoding per segment, rather than over
-  // the whole string, so the separators stay separators.
+  // Pasting "file://" in front of a raw path is not enough: a filename is
+  // bytes, and on Linux those bytes may include a newline. text/uri-list is
+  // one URI per line, so a name carrying a CR or LF turns one entry into two
+  // and a drag hands the receiving application a path nobody chose. Encoding
+  // per segment, rather than over the whole string, so the separators stay
+  // separators.
+  //
+  // The model route used to take FolderListModel's fileUrl instead, on the
+  // understanding that it came percent-encoded. It does not, quite. String()
+  // of a url gives Qt's pretty form, which escapes control characters, % and #
+  // but leaves spaces and non-ASCII letters as they are, so "a b é.txt" went
+  // out with a literal space and a literal é. That is not a valid URI, and it
+  // is not only a matter of form: GLib trims whitespace from each uri-list
+  // line, so a drag of "report.pdf " (trailing space) arrived in a GTK app as
+  // "report.pdf", which is a different file.
   function fileUrl(path) {
     var parts = String(path || "").split("/")
     for (var i = 0; i < parts.length; i++) parts[i] = encodeURIComponent(parts[i])

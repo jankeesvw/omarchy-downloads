@@ -10,8 +10,9 @@ import qs.Commons as Commons
 // Drag.dragType: Drag.Automatic is what makes this a real Wayland drag
 // (wl_data_device.start_drag) rather than an in-scene one. text/uri-list is
 // the format file managers, browsers and chat apps read; text/plain is there
-// for fields that only take text. The URL comes from FolderListModel, which
-// percent-encodes it, so names with spaces survive.
+// for fields that only take text. The URL is built from the path by
+// DownloadsStore.fileUrl(), which percent-encodes every segment, so a name
+// with spaces or accents goes over the wire as one valid URI.
 //
 // Detect the gesture without moving a target. ListView exclusively owns the
 // delegate coordinates; the compositor moves only the captured drag image.
