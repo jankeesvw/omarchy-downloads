@@ -22,7 +22,7 @@ Panel {
   moduleName: "jankeesvw.downloads"
   ipcTarget: "jankeesvw.downloads"
 
-  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+  readonly property color foreground: bar ? bar.barForeground : Commons.Color.foreground
   readonly property color accent: Commons.Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
