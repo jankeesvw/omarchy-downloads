@@ -22,7 +22,10 @@ Panel {
   moduleName: "jankeesvw.downloads"
   ipcTarget: "jankeesvw.downloads"
 
-  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+  // The bar's own icons use barForeground, which follows the wallpaper when
+  // the bar is transparent (dark icons on a light wallpaper). bar.foreground
+  // is the theme colour and stays light there.
+  readonly property color foreground: root.barForeground
   readonly property color accent: Commons.Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
@@ -114,8 +117,10 @@ Panel {
           font.family: root.fontFamily
           font.pixelSize: Style.bar.iconFont
           renderType: Text.NativeRendering
-          // Opening is marked by the bar's underline; accent means new files.
-          color: root.hasFresh ? root.accent : root.foreground
+          // Opening is marked by the bar's underline and new files by the
+          // badge. The icon keeps the bar's colour: the accent is too pale
+          // over a light wallpaper.
+          color: root.foreground
         }
 
         Rectangle {
