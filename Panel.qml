@@ -22,7 +22,10 @@ Panel {
   moduleName: "jankeesvw.downloads"
   ipcTarget: "jankeesvw.downloads"
 
-  readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
+  // The bar's own icons use barForeground, which follows the wallpaper when
+  // the bar is transparent (dark icons on a light wallpaper). bar.foreground
+  // is the theme colour and stays light there.
+  readonly property color foreground: root.barForeground
   readonly property color accent: Commons.Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
